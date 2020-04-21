@@ -195,6 +195,7 @@ class StaffAreaMixin(object):
 
             # Note that this will check out a submission for grading by the specified staff member.
             # If no submissions are available for grading, will return None.
+            import pdb; pdb.set_trace()
             submission_to_assess = staff_api.get_submission_to_assess(course_id, item_id, staff_id)
 
             if submission_to_assess is not None:
@@ -282,6 +283,10 @@ class StaffAreaMixin(object):
                             block=str(self.location)
                         ))
                     context['staff_file_urls'] = self.get_all_upload_urls_for_user(student_username)
+
+            # In team_mixin.py 
+            if self.is_team_assignment():
+                context.update(self.add_team_submission_context_info(submission))
 
         if self.rubric_feedback_prompt is not None:
             context["rubric_feedback_prompt"] = self.rubric_feedback_prompt

@@ -1,10 +1,16 @@
 {% load i18n %}
 {% spaceless %}
 
+{% if team_name %}
+    {% trans 'team' as team_or_learner %}
+{% else %}
+    {% trans 'learner' as team_or_learner %}
+{% endif %}
+
     <div class="staff__grade__form" data-submission-uuid="{{ submission.uuid }}">
         <div class="wrapper--staff-assessment">
             <div>
-                <p>{% trans "Give this learner a grade using the problem's rubric." %}</p>
+                <p>{% blocktrans %} Give this {{ team_or_learner }} a grade using the problem's rubric. {% endblocktrans %}</p>
             </div>
 
             <div>
@@ -12,17 +18,22 @@
                     <div class="staff-assessment__display">
                         <header class="staff-assessment__display__header">
                             <h4 class="staff-assessment__display__title">
-                                {% if student_username %}
+
+                                {% if team_name and team_usernames %}
+                                    {% blocktrans %}
+                                        Response for team: {{ team_name }} with members {{ team_usernames }}{{ team_usernames|join:", " }}
+                                    {% endblocktrans %}
+                                {% elif student_username %}
                                     {% blocktrans %}
                                         Response for: {{ student_username }}
                                     {% endblocktrans %}
                                 {% else %}
-                                    {% trans "Learner Response" %}
+                                    {% blocktrans %} {{ team_or_learner|title }} Response {% endblocktrans %}
                                 {% endif %}
                             </h4>
                         </header>
 
-                        {% trans "The learner's response to the prompt above" as translated_label %}
+                        {% blocktrans asvar translated_label %} The {{ team_or_learner }}'s response to the prompt above {% endblocktrans %}
                         {% include "openassessmentblock/oa_submission_answer.html" with answer=submission.answer answer_text_label=translated_label %}
 
                         {% trans "Associated Files" as translated_header %}

@@ -54,6 +54,12 @@ class TeamMixin(object):
             raise ObjectDoesNotExist()
         team = self.teams_service.get_team(user, self.course_id, self.selected_teamset_id)
         return team
+    
+    def get_user_team(self, user, course_id, teamset_id):
+        """
+        Convience method to call through to teams_service.get_team
+        """
+        return self.teams_service.get_team(user, course_id, teamset_id)
 
     @cached_property
     def teamset_config(self):
