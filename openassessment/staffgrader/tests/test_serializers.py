@@ -1,10 +1,11 @@
+from typing import OrderedDict
 from django.test.testcases import TestCase
 import ddt
 from mock import Mock, patch
 from contextlib import contextmanager
 
 from openassessment.staffgrader.serializers.submission_list import (
-    SubmissionListSerializer, SubmissionListItemSerializer, SubmissionListItemScoreSerializer
+    SubmissionListSerializer, SubmissionListScoreSerializer
 )
 
 class BaseSerializerTest(TestCase):
@@ -15,14 +16,14 @@ class BaseSerializerTest(TestCase):
 
 
 @ddt.ddt
-class TestSubmissionListItemScoreSerializer(BaseSerializerTest):
+class TestSubmissionListScoreSerializer(BaseSerializerTest):
 
     @ddt.unpack
     @ddt.data((1, 10), (99, 100), (0, 0))
     def test_serializer(self, earned, possible):
         mock_assessment = Mock(points_earned=earned, points_possible=possible)
         self.assertDictEqual(
-            SubmissionListItemScoreSerializer(mock_assessment).data,
+            SubmissionListScoreSerializer(mock_assessment).data,
             {
                 'pointsEarned': mock_assessment.points_earned,
                 'pointsPossible': mock_assessment.points_possible
@@ -31,21 +32,21 @@ class TestSubmissionListItemScoreSerializer(BaseSerializerTest):
     
 
 @ddt.ddt
-class TestSubmissionListItemSerializer(BaseSerializerTest):
+class TestSubmissionListSerializer(BaseSerializerTest):
 
     @contextmanager
     def mock_get_gradedBy(self):
-        with patch.object(SubmissionListItemSerializer, 'get_gradedBy', return_value='get_gradedBy'):
+        with patch.object(SubmissionListSerializer, 'get_gradedBy', return_value='get_gradedBy'):
             yield
     
     @contextmanager
     def mock_get_username(self):
-        with patch.object(SubmissionListItemSerializer, 'get_username', return_value='get_username'):
+        with patch.object(SubmissionListSerializer, 'get_username', return_value='get_username'):
             yield
 
     @contextmanager
     def mock_get_score(self):
-        with patch.object(SubmissionListItemSerializer, 'get_score', return_value='get_score'):
+        with patch.object(SubmissionListSerializer, 'get_score', return_value='get_score'):
             yield
 
 
@@ -54,7 +55,7 @@ class TestSubmissionListItemSerializer(BaseSerializerTest):
         with self.mock_get_gradedBy():
             with self.mock_get_username():
                 with self.mock_get_score():
-                    result = SubmissionListItemSerializer(mock_workflow).data
+                    result = SubmissionListSerializer(mock_workflow).data
         self.assertDictEqual(
             result,
             {
@@ -80,10 +81,10 @@ class TestSubmissionListItemSerializer(BaseSerializerTest):
     
         with self.mock_get_username():
             with self.mock_get_score():
-                result = SubmissionListItemSerializer(
+                result = SubmissionListSerializer(
                     mock_workflow,
                     context={
-                        'anonymous_ids_to_usernames': {scorer_id: scorer_username}
+                        'anonymous_id_to_username': {scorer_id: scorer_username}
                     }
                 ).data
         if has_scorer_id:
@@ -97,19 +98,19 @@ class TestSubmissionListItemSerializer(BaseSerializerTest):
         # mock_workflow.identifying_uuid = str(mock_workflow.identifying_uuid)
         mock_assessment = Mock()
     
-        mock_assessments_by_submission_uuid = {}
+        mock_submission_uuid_to_assessment = {}
         if has_assessment:
-            mock_assessments_by_submission_uuid[mock_workflow.identifying_uuid] = mock_assessment
+            mock_submission_uuid_to_assessment[mock_workflow.identifying_uuid] = mock_assessment
 
         with self.mock_get_username():
             with self.mock_get_gradedBy():
                 with patch(
                     'openassessment.staffgrader.serializers.submission_list.SubmissionListItemScoreSerializer'
                 ) as mock_score_serializer:
-                    result = SubmissionListItemSerializer(
+                    result = SubmissionListSerializer(
                         mock_workflow,
                         context={
-                            'assessments_by_submission_uuid': mock_assessments_by_submission_uuid
+                            'submission_uuid_to_assessment': mock_submission_uuid_to_assessment
                         }
                     ).data
 
@@ -126,20 +127,17 @@ class TestSubmissionListItemSerializer(BaseSerializerTest):
 
         with self.mock_get_score():
             with self.mock_get_gradedBy():
-                result = SubmissionListItemSerializer(
+                result = SubmissionListSerializer(
                     mock_workflow,
                     context={
-                        'submission_uuids_to_student_id': {mock_workflow.identifying_uuid: student_id},
-                        'anonymous_ids_to_usernames': {student_id: username}
+                        'submission_uuid_to_student_id': {mock_workflow.identifying_uuid: student_id},
+                        'anonymous_id_to_username': {student_id: username}
                     }
                 ).data
 
         self.assertEqual(result['username'], username)
 
-
-class TestSubmissionListSerializer(BaseSerializerTest):
-
-    def test_serializer(self):
+    def test_integration(self):
         # Make three workflows. The first two have scorer_ids and the third does not
         workflows = [
             Mock(scorer_id='staff_student_id_1'),
@@ -148,39 +146,40 @@ class TestSubmissionListSerializer(BaseSerializerTest):
         ]
 
         # Dict from workflow uuids to student_id_{0,1,2}
-        submission_uuids_to_student_id = {
+        submission_uuid_to_student_id = {
             workflow.identifying_uuid: f'student_id_{i}'
             for i, workflow in enumerate(workflows)
         }
         
         # Simple mapping of student_id_n to username_n
-        anonymous_ids_to_usernames = {
-            'student_id_{i}': 'username_{i}'
+        anonymous_id_to_username = {
+            f'student_id_{i}': f'username_{i}'
             for i in range(3)
         }
         # also include usernames for the scorers of the first two workflows
-        anonymous_ids_to_usernames[workflows[0].scorer_id] = 'staff_username_1'
-        anonymous_ids_to_usernames[workflows[0].scorer_id] = 'staff_username_2'
+        anonymous_id_to_username[workflows[0].scorer_id] = 'staff_username_1'
+        anonymous_id_to_username[workflows[1].scorer_id] = 'staff_username_2'
 
         # Add assessments for the "scored" workflows
-        assessments_by_submission_uuid = {
+        submission_uuid_to_assessment = {
             workflows[0].identifying_uuid: Mock(points_possible=20, points_earned=10),
             workflows[1].identifying_uuid: Mock(points_possible=20, points_earned=7),
         }
 
         data = SubmissionListSerializer(
-            {'submissions': {workflow.identifying_uuid: workflow for workflow in workflows}},
+            workflows,
             context={
-                'submission_uuids_to_student_id': submission_uuids_to_student_id,
-                'anonymous_ids_to_usernames': anonymous_ids_to_usernames,
-                'assessments_by_submission_uuid': assessments_by_submission_uuid,
-            }
+                'submission_uuid_to_student_id': submission_uuid_to_student_id,
+                'anonymous_id_to_username': anonymous_id_to_username,
+                'submission_uuid_to_assessment': submission_uuid_to_assessment,
+            },
+            many=True
         ).data
 
-        self.assertDictEqual(
+        self.assertEqual(
             data['submissions'],
-            {
-                workflows[0].identifying_uuid: {
+            [
+                OrderedDict({
                     'submissionUuid': str(workflows[0].submission_uuid),
                     'dateSubmitted': str(workflows[0].created_at),
                     'dateGraded': str(workflows[0].grading_completed_at),
@@ -192,8 +191,8 @@ class TestSubmissionListSerializer(BaseSerializerTest):
                         'pointsEarned': 10,
                         'pointsPossible': 20,
                     },
-                },
-                workflows[1].identifying_uuid: {
+                }),
+                OrderedDict({
                     'submissionUuid': str(workflows[1].submission_uuid),
                     'dateSubmitted': str(workflows[1].created_at),
                     'dateGraded': str(workflows[1].grading_completed_at),
@@ -205,16 +204,16 @@ class TestSubmissionListSerializer(BaseSerializerTest):
                         'pointsEarned': 7,
                         'pointsPossible': 20,
                     },
-                },
-                workflows[2].identifying_uuid: {
+                }),
+                OrderedDict({
                     'submissionUuid': str(workflows[2].submission_uuid),
                     'dateSubmitted': str(workflows[2].created_at),
                     'dateGraded': str(workflows[2].grading_completed_at),
                     'gradingStatus': str(workflows[2].grading_status),
                     'lockStatus': str(workflows[2].lock_status),
-                    'gradedBy': 'None',
+                    'gradedBy': None,
                     'username': 'username_2',
-                    'score': 'None',
-                }
-            }
+                    'score': None,
+                })
+            ]
         )

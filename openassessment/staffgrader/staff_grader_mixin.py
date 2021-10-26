@@ -13,6 +13,7 @@ from openassessment.assessment.models.staff import StaffWorkflow
 from openassessment.data import map_anonymized_ids_to_usernames
 from openassessment.staffgrader.errors.submission_lock import SubmissionLockContestedError
 from openassessment.staffgrader.models.submission_lock import SubmissionGradingLock
+from openassessment.staffgrader.serializers.submission_list import SubmissionListSerializer
 from openassessment.staffgrader.serializers.submission_lock import SubmissionLockSerializer
 from openassessment.xblock.staff_area_mixin import require_course_staff
 
@@ -84,13 +85,16 @@ class StaffGraderMixin:
 
         # Fetch staff workflows, annotated with grading_status and lock_status
         staff_workflows = self._bulk_fetch_annotated_staff_workflows()
-        # Return seriaized staff workflows with additional Assessment / User / Team data.
-        # This is primarily split off in case we want to add pagination to this handler.
-        return self.staff_workflows_to_api_format(staff_workflows)
+        # Lookup additional info like usernames and assessments
+        serializer_context = self._get_list_workflows_serializer_context(staff_workflows)
 
-    def staff_workflows_to_api_format(self, staff_workflows):
+        # Serialize workflows with the context, and return the dict of submissions
+        data = SubmissionListSerializer(staff_workflows, context=serializer_context, many=True).data
+        return {workflow['submissionUuid']: workflow for workflow in data}
+
+    def _get_list_workflows_serializer_context(self, staff_workflows):
         """
-        Fetch additional required data and models, and serialize staff workflows
+        Fetch additional required data and models to serialize the response
         """
         # Pull out three sets from the workflows for use later
         submission_uuids, workflow_scorer_ids, assessment_ids = set(), set(), set()
@@ -105,52 +109,25 @@ class StaffGraderMixin:
         # Fetch user identifier mappings
 
         # When we look up usernames we want to include all connected learner student ids
-        submission_uuids_to_student_id = get_student_ids_by_submission_uuid(
+        submission_uuid_to_student_id = get_student_ids_by_submission_uuid(
             course_id,
             submission_uuids,
         )
 
-        # Do bulk lookup for all anonymous ids. This is used for team + individual for
-        # looking up username of "scorer", and to provide "username" for individual
-        # assignments
-        anonymous_ids_to_usernames = map_anonymized_ids_to_usernames(
-            set(submission_uuids_to_student_id.values()) | workflow_scorer_ids
+        # Do bulk lookup for all anonymous ids (submitters and scoreres). This is used for the
+        # `gradedBy` and `username` fields
+        anonymous_id_to_username = map_anonymized_ids_to_usernames(
+            set(submission_uuid_to_student_id.values()) | workflow_scorer_ids
         )
 
         # Do a bulk fetch of the assessments linked to the workflows, including all connected
         # Rubric, Criteria, and Option models
-        assessments_by_submission_uuid = self.bulk_deep_fetch_assessments(assessment_ids)
-
-        response = {}
-        for workflow in staff_workflows:
-            workflow_dict = {
-                "submissionUuid": workflow.submission_uuid,
-                "dateSubmitted": str(workflow.created_at),
-                "dateGraded": str(workflow.grading_completed_at),
-                "gradingStatus": workflow.grading_status,
-                "lockStatus": workflow.lock_status,
-            }
-
-            if workflow.scorer_id:
-                workflow_dict["gradedBy"] = anonymous_ids_to_usernames[workflow.scorer_id]
-            else:
-                workflow_dict['gradedBy'] = None
-
-            student_id = submission_uuids_to_student_id[workflow.identifying_uuid]
-            workflow_dict['username'] = anonymous_ids_to_usernames[student_id]
-
-            assessment = assessments_by_submission_uuid.get(workflow.identifying_uuid)
-            if assessment:
-                workflow_dict['score'] = {
-                    'points_earned': assessment.points_earned,
-                    'points_possible': assessment.points_possible,
-                }
-            else:
-                workflow_dict['score'] = dict()
-
-            response[workflow.submission_uuid] = workflow_dict
-
-        return response
+        submission_uuid_to_assessment = self.bulk_deep_fetch_assessments(assessment_ids)
+        return {
+            'submission_uuid_to_student_id': submission_uuid_to_student_id,
+            'anonymous_id_to_username': anonymous_id_to_username,
+            'submission_uuid_to_assessment': submission_uuid_to_assessment,
+        }
 
     def _bulk_fetch_annotated_staff_workflows(self):
         """
