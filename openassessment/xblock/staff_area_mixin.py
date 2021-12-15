@@ -391,7 +391,7 @@ class StaffAreaMixin(object):
             'score': workflow.get('score'),
             'workflow_status': workflow.get('status'),
             'workflow_cancellation': workflow_cancellation,
-            'are_grades_frozen': grade_utils.are_grades_frozen()
+            'are_grades_frozen': None if not grade_utils else grade_utils.are_grades_frozen()
         })
 
         if peer_assessments or self_assessment or staff_assessment:
