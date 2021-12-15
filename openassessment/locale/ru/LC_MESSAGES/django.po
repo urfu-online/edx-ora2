@@ -149,7 +149,7 @@ msgstr "Загрузка файла"
 msgid ""
 "Specify whether learners are able to upload files as a part of their "
 "response."
-msgstr "Укажите, могут ли слушетели загружать файлы как часть своего ответа."
+msgstr "Укажите, могут ли слушатели загружать файлы как часть своего ответа."
 
 #: openassessment/templates/openassessmentblock/edit/oa_edit.html:131
 msgid "File Upload Types"
@@ -461,7 +461,7 @@ msgid ""
 "that you provide. Learners move to the next step when the scores they give "
 "match your scores. Note that if you add this step, you must also add a peer "
 "assessment step. This step must come before the peer assessment step."
-msgstr "Слушатели учаться оценивать ответы, выставляя баллы вашим заранее оцененным примерам. Слушатели переходят к следующему шагу, когда их оценки совпадут с вашими. Обратите внимание: если вы используете данный шаг, после него вам необходимо будет также добавить шаг Взаимное оценивание. Данный шаг обязательно должен предшествовать шагу Взаимное оценивание."
+msgstr "Слушатели учатся оценивать ответы, выставляя баллы вашим заранее оцененным примерам. Слушатели переходят к следующему шагу, когда их оценки совпадут с вашими. Обратите внимание: если вы используете данный шаг, после него вам необходимо будет также добавить шаг Взаимное оценивание. Данный шаг обязательно должен предшествовать шагу Взаимное оценивание."
 
 #: openassessment/templates/openassessmentblock/edit/oa_edit_student_training.html:18
 msgid ""
